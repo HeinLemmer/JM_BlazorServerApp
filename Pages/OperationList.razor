@@ -1,0 +1,52 @@
+﻿@using JendaMarkBlazorApp.Data;
+@using JendaMarkBlazorApp.Services;
+
+@page "/operations"
+<h3>OperationList</h3>
+
+<ul>
+    @foreach (var operation in operations)
+    {
+        <li>
+            @operation.Name
+            <button class="btn btn-danger" @onclick="() => RemoveOperation(operation.OperationID)">Remove</button>
+        </li>
+    }
+</ul>
+
+<button class="btn btn-success" @onclick="ShowAddOperationModal">Add Operation</button>
+
+@if (showAddOperation)
+{
+    <AddOperation OnClose="CloseAddOperationModal" />
+}
+
+@code {
+    private List<Operation> operations;
+    private bool showAddOperation = false;
+
+    [Inject]
+    private OperationService operationService { get; set; }
+
+    protected override void OnInitialized()
+    {
+        operations = operationService.GetOperations();
+    }
+
+    private void RemoveOperation(int operationId)
+    {
+        operationService.RemoveOperation(operationId);
+        operations = operationService.GetOperations();
+    }
+
+    private void ShowAddOperationModal()
+    {
+        showAddOperation = true;
+    }
+
+    private void CloseAddOperationModal()
+    {
+        showAddOperation = false;
+        operations = operationService.GetOperations();
+    }
+}

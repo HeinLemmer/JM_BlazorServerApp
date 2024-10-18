@@ -1,0 +1,318 @@
+﻿@page "/"
+@using JendaMarkBlazorApp.Data;
+@using JendaMarkBlazorApp.Services;
+@using System.ComponentModel.DataAnnotations;
+
+<PageTitle>Operations Management</PageTitle>
+
+<h1>Operations</h1>
+
+<!-- Add Operation Button -->
+<button class="btn btn-success" @onclick="ShowAddOperationModal">Add New Operation</button>
+
+<!-- Operation Table -->
+<table class="table">
+    <thead>
+        <tr>
+            <th>Operation ID</th>
+            <th>Name</th>
+            <th>Order</th>
+            <th>Image</th>
+            <th>Device(s)</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var operation in operations)
+        {
+            <tr>
+                <td>@operation.OperationID</td>
+                <td>@operation.Name</td>
+                <td>@operation.OrderInWhichToPerform</td>
+                <td>
+                    @if (operation.ImageData != null)
+                    {
+                        <img class="operationImageDisplay" src="data:image/jpeg;base64,@Convert.ToBase64String(operation.ImageData)" alt="Image" />
+                    }
+                    else
+                    {
+                        <span>No image</span>
+                    }
+                </td>
+                <td>
+                    @if (operation.Devices != null)
+                    {
+                        @foreach (var device in operation.Devices)
+                        {
+                            <span>@device.DeviceType</span>
+                            <br />
+                        }
+                    }
+                    else
+                    {
+                        <span>No Devices</span>
+                    }
+                </td>
+                <td>
+                    <button id="ListBtnDelete" class="btn btn-danger" @onclick="() => DeleteOperation(operation.OperationID)">Delete</button>
+                    <button class="btn btn-success" @onclick="() => ShowAddDeviceModal(operation)">Add Device to Operation</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+
+<!-- Add Operation Modal -->
+<div class="modal" style="display: @(showAddOperationModal ? "block" : "none")">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Operation</h5>
+                <button type="button" class="close btn btn-danger" @onclick="CloseAddOperationModal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <!-- Warning message section -->
+                @if (!string.IsNullOrEmpty(operationWarningMessage))
+                {
+                    <div class="alert alert-danger">
+                        @operationWarningMessage
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label for="newOperationID">Operation ID:</label>
+                    <span id="newOperationID" class="form-control">@newOperation.OperationID</span>
+                </div>
+                <div class="form-group">
+                    <label for="newOperationName">Operation Name:</label>
+                    <input id="newOperationName" class="form-control" @bind="newOperation.Name" />
+                </div>
+                <div class="form-group">
+                    <label for="newOperationOrder">Order:</label>
+                    <input id="newOperationOrder" class="form-control" @bind="newOperation.OrderInWhichToPerform" />
+                </div>
+                <div class="form-group" id="imageFormGroup">
+                    <label for="newOperationImageData">Image Data:</label>
+                    <InputFile id="newOperationImageData" type="file" accept=".jpeg, .jpg, .png" OnChange="@HandleImageUpload" />
+
+                    @if (imageBytes != null)
+                    {
+                        <img class="operationImageDisplayModal" src="@imageSrc" alt="Uploaded Image" />
+                    }
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-success" @onclick="AddOperation">Add Operation</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+<!-- Add Device to Operation Modal -->
+<div class="modal" style="display: @(showAddDeviceModal ? "block" : "none")">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Device to Operation</h5>
+                <button type="button" class="close btn btn-danger" @onclick="CloseAddDeviceModal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Warning message section -->
+                @if (!string.IsNullOrEmpty(deviceWarningMessage))
+                {
+                    <div class="alert alert-danger">
+                        @deviceWarningMessage
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label for="newDeviceType">Device Type:</label>
+                    <select id="newDeviceType" class="form-control" @bind="newDevice.DeviceType">
+                        <option value="">Select a Device Type</option>
+                        @foreach (var deviceType in Enum.GetValues(typeof(DeviceType)))
+                        {
+                            <option value="@deviceType.ToString()">@deviceType.ToString()</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="newCustomDeviceType">Device Name:</label>
+                    <input id="newCustomDeviceType" class="form-control" @bind="newDevice.Name" />
+                </div>
+
+                <button class="btn btn-success mt-3" @onclick="AddDeviceToOperation">Add Device</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    private List<Operation> operations = new List<Operation>();
+    private Operation newOperation = new Operation();
+    private List<Device> devices = new List<Device>();
+    private bool showAddOperationModal = false;
+    private Device newDevice = new Device();
+    private bool showAddDeviceModal = false;
+    private Operation selectedOperation;
+    //private DeviceType selectedDeviceType;
+    private byte[] imageBytes;
+    private string imageSrc;
+    private string deviceWarningMessage = "";
+    private string operationWarningMessage = "";
+
+    [Inject]
+    private OperationService ?operationService { get; set; }
+
+    [Inject]
+    private DeviceService ?deviceService { get; set; }
+
+    protected override void OnInitialized()
+    {
+        operations = operationService.GetOperations(); // Fetch operations from your service
+        devices = deviceService.GetDevices(); // Fetch devices from your service
+    }
+
+    private void DeleteOperation(int operationId)
+    {
+        operationService.RemoveOperation(operationId);
+    }
+
+    private void ShowAddDeviceModal(Operation operation)
+    {
+        selectedOperation = operation;
+        showAddDeviceModal = true;
+        newDevice = new Device();
+    }
+
+    private void CloseAddDeviceModal()
+    {
+        showAddDeviceModal = false;
+        newDevice = new Device();
+    }
+
+    private void ShowAddOperationModal()
+    {
+
+        newOperation = new Operation
+            {
+                OperationID = operationService.GetNextOperationId() // get the next available ID
+            };
+        showAddOperationModal = true;
+    }
+
+    private void CloseAddOperationModal()
+    {
+        showAddOperationModal = false;
+        newOperation = new Operation();
+        operationWarningMessage = "";
+    }
+
+    private void AddOperation()
+    {
+        // Validate the Operation Name and Order
+        if (string.IsNullOrEmpty(newOperation.Name))
+        {
+            operationWarningMessage = "Operation Name cannot be empty.";
+            return;
+        }
+
+        if (newOperation.OrderInWhichToPerform <= 0)
+        {
+            operationWarningMessage = "Order cannot be empty or zero.";
+            return;
+        }
+
+        operationWarningMessage = ""; // Clear the warning message
+        operationService.AddOperation(newOperation); // Call your service to add the operation
+
+        // Reset the newOperation object
+        newOperation = new Operation();
+        CloseAddOperationModal();
+    }
+
+    private void AddDeviceToOperation()
+    {
+        // Validation for empty device type
+        if (string.IsNullOrEmpty(newDevice.DeviceType) && string.IsNullOrEmpty(newDevice.Name))
+        {
+            deviceWarningMessage = "Please select a device type.";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(newDevice.DeviceType))
+        {
+            newDevice.DeviceType = newDevice.Name;
+        }
+
+    
+
+        // If no validation errors, proceed to add the device
+        if (selectedOperation.Devices == null)
+        {
+            selectedOperation.Devices = new List<Device>();
+        }
+
+        // Add the device to the selected operation
+        selectedOperation.Devices.Add(newDevice);
+
+        // Reset new device and close modal
+        newDevice = new Device(); // Reset to a new device object
+        deviceWarningMessage = "";
+        CloseAddDeviceModal();
+    }
+
+
+
+
+    private async Task HandleImageUpload(InputFileChangeEventArgs e)
+    {
+
+        var imageFile = e.File;
+        var buffer = new byte[imageFile.Size];
+
+        // Read the image into the byte array
+        using (var stream = imageFile.OpenReadStream())
+        {
+            await stream.ReadAsync(buffer);
+        }
+
+        // Convert byte array to Base64 for display
+        imageBytes = buffer;
+        imageSrc = $"data:image/{GetImageFormat(imageBytes)};base64,{Convert.ToBase64String(imageBytes)}";
+
+        // Assign the uploaded image data to the newOperation.ImageData property
+        newOperation.ImageData = imageBytes;
+    }
+
+    private string GetImageFormat(byte[] bytes)
+    {
+        if (bytes == null || bytes.Length < 4)
+        {
+            return "jpeg"; // Default to JPEG if data is not available.
+        }
+
+        if (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47)
+        {
+            return "png";
+        }
+        else if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF)
+        {
+            return "jpeg";
+        }
+
+        return "jpeg"; // Default to JPEG if the format is not recognized.
+    }
+
+}
